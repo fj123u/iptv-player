@@ -1,39 +1,49 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
-import { Search, Play, Star, ArrowLeft } from 'lucide-react';
+import { Search, Play, Star, Info, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
-export default function Vod({ playlistId, onBack, onPlay }) {
+export default function Vod({ playlistId, onPlay }) {
   const [categories, setCategories] = useState([]);
-  const [films, setFilms] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [filmsByCategory, setFilmsByCategory] = useState({});
+  const [allFilms, setAllFilms] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilm, setSelectedFilm] = useState(null);
+  const [heroFilm, setHeroFilm] = useState(null);
 
   useEffect(() => {
-    loadCategories();
+    loadAll();
   }, [playlistId]);
 
-  useEffect(() => {
-    loadFilms();
-  }, [selectedCategory, playlistId]);
-
-  const loadCategories = async () => {
-    try {
-      const { data } = await api.get(`/xtream/${playlistId}/vod/categories`);
-      setCategories(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const loadFilms = async () => {
+  const loadAll = async () => {
     setLoading(true);
     try {
-      const params = selectedCategory ? `?category_id=${selectedCategory}` : '';
-      const { data } = await api.get(`/xtream/${playlistId}/vod${params}`);
-      setFilms(data);
+      const [catRes, filmsRes] = await Promise.all([
+        api.get(`/xtream/${playlistId}/vod/categories`),
+        api.get(`/xtream/${playlistId}/vod`)
+      ]);
+
+      const cats = catRes.data || [];
+      const films = filmsRes.data || [];
+      setCategories(cats);
+      setAllFilms(films);
+
+      // Group by category
+      const grouped = {};
+      for (const cat of cats) {
+        const catFilms = films.filter(f => String(f.category_id) === String(cat.category_id));
+        if (catFilms.length > 0) {
+          grouped[cat.category_id] = { name: cat.category_name, films: catFilms };
+        }
+      }
+      setFilmsByCategory(grouped);
+
+      // Pick hero
+      const withLogo = films.filter(f => f.logo && f.rating);
+      if (withLogo.length > 0) {
+        setHeroFilm(withLogo[Math.floor(Math.random() * Math.min(20, withLogo.length))]);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -41,143 +51,229 @@ export default function Vod({ playlistId, onBack, onPlay }) {
     }
   };
 
-  const filteredFilms = searchQuery
-    ? films.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : films;
+  useEffect(() => {
+    if (searchQuery.length > 1) {
+      const q = searchQuery.toLowerCase();
+      setSearchResults(allFilms.filter(f => f.name.toLowerCase().includes(q)).slice(0, 30));
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery, allFilms]);
 
-  const handlePlayFilm = (film) => {
+  const handlePlay = (film) => {
     onPlay({ name: film.name, url: film.url, logo: film.logo });
+    setSelectedFilm(null);
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={onBack} className="p-2 hover:bg-dark-800 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-2xl font-bold">Films</h2>
-        <div className="flex-1 max-w-md ml-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher un film..."
-              className="w-full pl-10 pr-4 py-2 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 text-sm"
-            />
+    <div className="space-y-8 -mt-6 -mx-6">
+      {/* Hero Banner */}
+      {heroFilm && !searchQuery && (
+        <div className="relative h-[50vh] min-h-[400px]">
+          <div className="absolute inset-0">
+            {heroFilm.logo && (
+              <img src={heroFilm.logo} alt="" className="w-full h-full object-cover" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-dark-950/80 to-transparent" />
           </div>
-        </div>
-      </div>
-
-      <div className="flex gap-6 flex-1 overflow-hidden">
-        {/* Categories sidebar */}
-        <div className="w-48 shrink-0 overflow-y-auto">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors ${
-              !selectedCategory ? 'bg-violet-600/20 text-violet-400' : 'hover:bg-dark-800 text-dark-300'
-            }`}
-          >
-            Tous ({films.length})
-          </button>
-          {categories.map(cat => (
-            <button
-              key={cat.category_id}
-              onClick={() => setSelectedCategory(cat.category_id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 transition-colors truncate ${
-                selectedCategory === cat.category_id ? 'bg-violet-600/20 text-violet-400' : 'hover:bg-dark-800 text-dark-300'
-              }`}
-            >
-              {cat.category_name}
-            </button>
-          ))}
-        </div>
-
-        {/* Films grid */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="bg-dark-800 rounded-xl animate-pulse aspect-[2/3]" />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {filteredFilms.map(film => (
-                <div
-                  key={film.id}
-                  className="group relative bg-dark-800 rounded-xl overflow-hidden border border-dark-700 hover:border-violet-500/50 transition-all cursor-pointer hover:scale-105"
-                  onClick={() => setSelectedFilm(film)}
-                >
-                  <div className="aspect-[2/3] relative">
-                    {film.logo ? (
-                      <img src={film.logo} alt={film.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-dark-700">
-                        <Play className="w-10 h-10 text-dark-500" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Play className="w-12 h-12 text-white" fill="white" />
-                    </div>
-                    {film.rating && (
-                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/70 px-2 py-0.5 rounded text-xs">
-                        <Star className="w-3 h-3 text-yellow-400" fill="currentColor" />
-                        {film.rating}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <h3 className="text-sm font-medium truncate">{film.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      {film.year && <span className="text-xs text-dark-400">{film.year}</span>}
-                      {film.genre && <span className="text-xs text-dark-500 truncate">{film.genre}</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Film detail modal */}
-      {selectedFilm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedFilm(null)}>
-          <div className="bg-dark-900 rounded-xl border border-dark-700 max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex gap-6 p-6">
-              {selectedFilm.logo && (
-                <img src={selectedFilm.logo} alt={selectedFilm.name} className="w-40 h-60 object-cover rounded-lg shrink-0" />
+          <div className="absolute bottom-12 left-8 max-w-lg">
+            <h1 className="text-4xl font-bold mb-3">{heroFilm.name}</h1>
+            <div className="flex items-center gap-4 text-sm text-dark-300 mb-4">
+              {heroFilm.rating && (
+                <span className="flex items-center gap-1 text-yellow-400">
+                  <Star className="w-4 h-4" fill="currentColor" />
+                  {heroFilm.rating}
+                </span>
               )}
-              <div className="flex-1">
-                <h2 className="text-xl font-bold mb-2">{selectedFilm.name}</h2>
-                <div className="flex flex-wrap gap-3 text-sm text-dark-400 mb-4">
-                  {selectedFilm.year && <span>{selectedFilm.year}</span>}
-                  {selectedFilm.rating && (
-                    <span className="flex items-center gap-1">
-                      <Star className="w-3 h-3 text-yellow-400" fill="currentColor" />
-                      {selectedFilm.rating}
-                    </span>
-                  )}
-                  {selectedFilm.genre && <span>{selectedFilm.genre}</span>}
-                </div>
-                {selectedFilm.director && <p className="text-sm text-dark-300 mb-2"><strong>Réalisateur :</strong> {selectedFilm.director}</p>}
-                {selectedFilm.cast && <p className="text-sm text-dark-400 mb-4"><strong>Casting :</strong> {selectedFilm.cast}</p>}
-                {selectedFilm.plot && <p className="text-sm text-dark-400 mb-4">{selectedFilm.plot}</p>}
-                <button
-                  onClick={() => { handlePlayFilm(selectedFilm); setSelectedFilm(null); }}
-                  className="flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 rounded-lg font-medium transition-colors"
-                >
-                  <Play className="w-5 h-5" fill="white" />
-                  Regarder
-                </button>
-              </div>
+              {heroFilm.year && <span>{heroFilm.year}</span>}
+              {heroFilm.genre && <span>{heroFilm.genre}</span>}
+            </div>
+            {heroFilm.plot && (
+              <p className="text-sm text-dark-300 line-clamp-3 mb-6">{heroFilm.plot}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => handlePlay(heroFilm)}
+                className="flex items-center gap-2 px-6 py-3 bg-white text-black rounded-lg font-semibold hover:bg-white/90 transition-colors"
+              >
+                <Play className="w-5 h-5" fill="black" />
+                Lecture
+              </button>
+              <button
+                onClick={() => setSelectedFilm(heroFilm)}
+                className="flex items-center gap-2 px-6 py-3 bg-dark-700/80 hover:bg-dark-600 rounded-lg font-medium transition-colors"
+              >
+                <Info className="w-5 h-5" />
+                Plus d'infos
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Search */}
+      <div className="px-8">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher un film..."
+            className="w-full pl-10 pr-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* Search results */}
+      {searchQuery.length > 1 ? (
+        <div className="px-8">
+          <h2 className="text-xl font-semibold mb-4">Résultats ({searchResults.length})</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {searchResults.map(film => (
+              <FilmCard key={film.id} film={film} onClick={() => setSelectedFilm(film)} />
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* Carousels by category */
+        Object.entries(filmsByCategory).map(([catId, { name, films }]) => (
+          <Carousel key={catId} title={name} items={films} onSelect={setSelectedFilm} />
+        ))
+      )}
+
+      {/* Detail Modal */}
+      {selectedFilm && (
+        <FilmModal film={selectedFilm} onClose={() => setSelectedFilm(null)} onPlay={() => handlePlay(selectedFilm)} />
+      )}
+    </div>
+  );
+}
+
+function FilmCard({ film, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      className="group relative rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-105 hover:z-10"
+    >
+      <div className="aspect-[2/3] bg-dark-800">
+        {film.logo ? (
+          <img src={film.logo} alt={film.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Play className="w-8 h-8 text-dark-600" />
+          </div>
+        )}
+      </div>
+      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-3">
+        <Play className="w-10 h-10 text-white mb-2" fill="white" />
+        <p className="text-sm font-medium text-center line-clamp-2">{film.name}</p>
+        <div className="flex items-center gap-2 mt-1 text-xs text-dark-300">
+          {film.rating && (
+            <span className="flex items-center gap-0.5">
+              <Star className="w-3 h-3 text-yellow-400" fill="currentColor" />
+              {film.rating}
+            </span>
+          )}
+          {film.year && <span>{film.year}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Carousel({ title, items, onSelect }) {
+  const scrollRef = useRef(null);
+
+  const scroll = (direction) => {
+    const el = scrollRef.current;
+    const amount = el.clientWidth * 0.8;
+    el.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
+  };
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="relative group/carousel px-8">
+      <h2 className="text-lg font-semibold mb-3">{title}</h2>
+      <div className="relative">
+        <button
+          onClick={() => scroll('left')}
+          className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-dark-950 to-transparent z-10 flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+        <div ref={scrollRef} className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth pb-2">
+          {items.slice(0, 30).map(film => (
+            <div key={film.id} className="shrink-0 w-36 sm:w-40">
+              <FilmCard film={film} onClick={() => onSelect(film)} />
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => scroll('right')}
+          className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-dark-950 to-transparent z-10 flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FilmModal({ film, onClose, onPlay }) {
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-dark-900 rounded-2xl border border-dark-700 max-w-3xl w-full max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header image */}
+        <div className="relative h-64">
+          {film.logo ? (
+            <img src={film.logo} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-dark-800" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-dark-900 to-transparent" />
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-dark-900/80 rounded-full hover:bg-dark-800 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 -mt-16 relative">
+          <h2 className="text-2xl font-bold mb-3">{film.name}</h2>
+          <div className="flex flex-wrap items-center gap-4 text-sm mb-4">
+            {film.rating && (
+              <span className="flex items-center gap-1 text-yellow-400 font-medium">
+                <Star className="w-4 h-4" fill="currentColor" />
+                {film.rating}/10
+              </span>
+            )}
+            {film.year && <span className="text-dark-300">{film.year}</span>}
+            {film.genre && <span className="px-2 py-0.5 bg-dark-700 rounded text-dark-300 text-xs">{film.genre}</span>}
+          </div>
+
+          <button
+            onClick={onPlay}
+            className="flex items-center gap-2 px-8 py-3 bg-violet-600 hover:bg-violet-700 rounded-lg font-semibold transition-colors mb-6"
+          >
+            <Play className="w-5 h-5" fill="white" />
+            Regarder maintenant
+          </button>
+
+          {film.plot && <p className="text-sm text-dark-300 mb-4 leading-relaxed">{film.plot}</p>}
+          {film.director && <p className="text-sm text-dark-400"><span className="text-dark-200">Réalisateur :</span> {film.director}</p>}
+          {film.cast && <p className="text-sm text-dark-400 mt-1"><span className="text-dark-200">Casting :</span> {film.cast}</p>}
+        </div>
+      </div>
     </div>
   );
 }

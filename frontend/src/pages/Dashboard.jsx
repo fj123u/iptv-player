@@ -249,7 +249,6 @@ export default function Dashboard() {
           {activeTab === 'vod' && xtreamPlaylistId && (
             <Vod
               playlistId={xtreamPlaylistId}
-              onBack={() => setActiveTab('live')}
               onPlay={handlePlayContent}
             />
           )}
@@ -257,7 +256,6 @@ export default function Dashboard() {
           {activeTab === 'series' && xtreamPlaylistId && (
             <Series
               playlistId={xtreamPlaylistId}
-              onBack={() => setActiveTab('live')}
               onPlay={handlePlayContent}
             />
           )}
