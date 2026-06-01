@@ -5,27 +5,32 @@ echo        IPTV Player - Demarrage
 echo ========================================
 echo.
 
-echo [1/2] Demarrage du backend...
-start /B cmd /c "cd /d %~dp0backend && node src/index.js"
+:: Tuer les anciens processus node sur les ports
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3001.*LISTENING"') do taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5173.*LISTENING"') do taskkill /f /pid %%a >nul 2>&1
 
-timeout /t 2 /nobreak >nul
-
-echo [2/2] Demarrage du frontend...
-start /B cmd /c "cd /d %~dp0frontend && npx vite"
+echo [1/2] Demarrage du backend (port 3001)...
+start "IPTV Backend" /min cmd /c "cd /d %~dp0backend && node src/index.js"
 
 timeout /t 3 /nobreak >nul
 
+echo [2/2] Demarrage du frontend (port 5173)...
+start "IPTV Frontend" /min cmd /c "cd /d %~dp0frontend && npx vite --port 5173 --strictPort"
+
+timeout /t 4 /nobreak >nul
+
 echo.
 echo ========================================
-echo   Application demarree avec succes !
-echo   Ouvrez: http://localhost:5173
+echo   Application prete !
+echo   URL: http://localhost:5173
 echo ========================================
 echo.
-echo Appuyez sur une touche pour ouvrir le navigateur...
-pause >nul
 
 start http://localhost:5173
-echo.
-echo Pour arreter, fermez cette fenetre.
+
+echo Appuyez sur une touche pour ARRETER les serveurs...
 pause >nul
-taskkill /f /im node.exe >nul 2>&1
+
+:: Nettoyage
+taskkill /fi "WINDOWTITLE eq IPTV Backend" /f >nul 2>&1
+taskkill /fi "WINDOWTITLE eq IPTV Frontend" /f >nul 2>&1
