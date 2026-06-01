@@ -9,6 +9,7 @@ import { initDatabase } from './database.js';
 import authRoutes from './routes/auth.js';
 import playlistRoutes from './routes/playlists.js';
 import channelRoutes from './routes/channels.js';
+import xtreamRoutes from './routes/xtream.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -28,15 +29,19 @@ app.use('/api/playlists', (req, res, next) => {
   }
 }, playlistRoutes);
 app.use('/api/channels', channelRoutes);
+app.use('/api/xtream', xtreamRoutes);
 
 app.get('/api/proxy', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'URL requise' });
 
   try {
+    // Pour les vidéos (VOD), utiliser le streaming
+    const isVideo = url.match(/\.(mp4|mkv|avi|ts)(\?|$)/i) && !url.includes('.m3u8');
+
     const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      timeout: 30000,
+      responseType: isVideo ? 'stream' : 'arraybuffer',
+      timeout: isVideo ? 0 : 30000,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': '*/*',
@@ -44,6 +49,20 @@ app.get('/api/proxy', async (req, res) => {
       },
       maxRedirects: 5
     });
+
+    if (isVideo) {
+      const contentType = response.headers['content-type'] || 'video/mp4';
+      res.set({
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*',
+        'Transfer-Encoding': 'chunked'
+      });
+      if (response.headers['content-length']) {
+        res.set('Content-Length', response.headers['content-length']);
+      }
+      response.data.pipe(res);
+      return;
+    }
 
     const contentType = response.headers['content-type'] || 'application/octet-stream';
     const isPlaylist = url.includes('.m3u8') || url.includes('.m3u') ||

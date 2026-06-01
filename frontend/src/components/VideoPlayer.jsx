@@ -24,8 +24,12 @@ export default function VideoPlayer({ channel, onClose }) {
     }
 
     const streamUrl = '/api/proxy?url=' + encodeURIComponent(channel.url);
+    const isDirectVideo = channel.url.match(/\.(mp4|mkv|avi)(\?|$)/i);
 
-    if (Hls.isSupported()) {
+    if (isDirectVideo) {
+      video.src = streamUrl;
+      video.play().catch(() => {});
+    } else if (Hls.isSupported()) {
       const hls = new Hls();
       hlsRef.current = hls;
       hls.loadSource(streamUrl);

@@ -5,7 +5,9 @@ import Sidebar from '../components/Sidebar';
 import ChannelGrid from '../components/ChannelGrid';
 import AddPlaylistModal from '../components/AddPlaylistModal';
 import VideoPlayer from '../components/VideoPlayer';
-import { Search, Plus, LogOut, Tv, Heart } from 'lucide-react';
+import Vod from './Vod';
+import Series from './Series';
+import { Search, Plus, LogOut, Tv, Heart, Film, MonitorPlay } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -19,6 +21,8 @@ export default function Dashboard() {
   const [showFavorites, setShowFavorites] = useState(false);
   const [currentChannel, setCurrentChannel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('live'); // live, vod, series
+  const [xtreamPlaylistId, setXtreamPlaylistId] = useState(null);
 
   useEffect(() => {
     loadPlaylists();
@@ -29,12 +33,18 @@ export default function Dashboard() {
     loadChannels();
   }, [selectedGroup, selectedPlaylist, searchQuery, showFavorites]);
 
+  useEffect(() => {
+    // Auto-detect xtream playlist for VOD/Series
+    const xtream = playlists.find(p => p.url?.startsWith('xtream://'));
+    if (xtream) setXtreamPlaylistId(xtream.id);
+  }, [playlists]);
+
   const loadPlaylists = async () => {
     try {
       const { data } = await api.get('/playlists');
       setPlaylists(data);
     } catch (err) {
-      console.error('Erreur chargement playlists:', err);
+      console.error(err);
     }
   };
 
@@ -43,7 +53,7 @@ export default function Dashboard() {
       const { data } = await api.get('/channels/groups');
       setGroups(data);
     } catch (err) {
-      console.error('Erreur chargement groupes:', err);
+      console.error(err);
     }
   };
 
@@ -62,7 +72,7 @@ export default function Dashboard() {
         setChannels(data);
       }
     } catch (err) {
-      console.error('Erreur chargement chaînes:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -83,7 +93,7 @@ export default function Dashboard() {
       loadGroups();
       loadChannels();
     } catch (err) {
-      console.error('Erreur suppression:', err);
+      console.error(err);
     }
   };
 
@@ -94,7 +104,7 @@ export default function Dashboard() {
       loadGroups();
       loadChannels();
     } catch (err) {
-      console.error('Erreur rafraîchissement:', err);
+      console.error(err);
     }
   };
 
@@ -108,8 +118,12 @@ export default function Dashboard() {
         setChannels(prev => prev.filter(ch => ch.id !== channelId));
       }
     } catch (err) {
-      console.error('Erreur favori:', err);
+      console.error(err);
     }
+  };
+
+  const handlePlayContent = (content) => {
+    setCurrentChannel(content);
   };
 
   return (
@@ -121,27 +135,51 @@ export default function Dashboard() {
           <h1 className="text-xl font-bold hidden sm:block">IPTV Player</h1>
         </div>
 
-        <div className="flex-1 max-w-xl mx-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher une chaîne..."
-              className="w-full pl-10 pr-4 py-2 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
-            />
-          </div>
+        {/* Tabs */}
+        <div className="flex items-center gap-1 bg-dark-800 rounded-lg p-1">
+          <button
+            onClick={() => setActiveTab('live')}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'live' ? 'bg-violet-600 text-white' : 'text-dark-400 hover:text-white'
+            }`}
+          >
+            <Tv className="w-4 h-4" />
+            <span className="hidden sm:inline">Live</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('vod')}
+            disabled={!xtreamPlaylistId}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'vod' ? 'bg-violet-600 text-white' : 'text-dark-400 hover:text-white'
+            } ${!xtreamPlaylistId ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            <Film className="w-4 h-4" />
+            <span className="hidden sm:inline">Films</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('series')}
+            disabled={!xtreamPlaylistId}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'series' ? 'bg-violet-600 text-white' : 'text-dark-400 hover:text-white'
+            } ${!xtreamPlaylistId ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            <MonitorPlay className="w-4 h-4" />
+            <span className="hidden sm:inline">Séries</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => { setShowFavorites(!showFavorites); setSelectedGroup(null); setSelectedPlaylist(null); }}
-            className={`p-2 rounded-lg transition-colors ${showFavorites ? 'bg-violet-600 text-white' : 'hover:bg-dark-800 text-dark-400'}`}
-            title="Favoris"
-          >
-            <Heart className="w-5 h-5" fill={showFavorites ? 'currentColor' : 'none'} />
-          </button>
+          {activeTab === 'live' && (
+            <>
+              <button
+                onClick={() => { setShowFavorites(!showFavorites); setSelectedGroup(null); setSelectedPlaylist(null); }}
+                className={`p-2 rounded-lg transition-colors ${showFavorites ? 'bg-violet-600 text-white' : 'hover:bg-dark-800 text-dark-400'}`}
+                title="Favoris"
+              >
+                <Heart className="w-5 h-5" fill={showFavorites ? 'currentColor' : 'none'} />
+              </button>
+            </>
+          )}
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors"
@@ -159,35 +197,70 @@ export default function Dashboard() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <Sidebar
-          playlists={playlists}
-          groups={groups}
-          selectedGroup={selectedGroup}
-          selectedPlaylist={selectedPlaylist}
-          showFavorites={showFavorites}
-          onSelectGroup={(g) => { setSelectedGroup(g); setShowFavorites(false); setSelectedPlaylist(null); }}
-          onSelectPlaylist={(p) => { setSelectedPlaylist(p); setShowFavorites(false); setSelectedGroup(null); }}
-          onDeletePlaylist={handleDeletePlaylist}
-          onRefreshPlaylist={handleRefreshPlaylist}
-        />
+        {/* Sidebar - only for live */}
+        {activeTab === 'live' && (
+          <Sidebar
+            playlists={playlists}
+            groups={groups}
+            selectedGroup={selectedGroup}
+            selectedPlaylist={selectedPlaylist}
+            showFavorites={showFavorites}
+            onSelectGroup={(g) => { setSelectedGroup(g); setShowFavorites(false); setSelectedPlaylist(null); }}
+            onSelectPlaylist={(p) => { setSelectedPlaylist(p); setShowFavorites(false); setSelectedGroup(null); }}
+            onDeletePlaylist={handleDeletePlaylist}
+            onRefreshPlaylist={handleRefreshPlaylist}
+          />
+        )}
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto p-6">
-          {currentChannel ? (
+          {currentChannel && (
             <VideoPlayer
               channel={currentChannel}
               onClose={() => setCurrentChannel(null)}
             />
-          ) : null}
+          )}
 
-          <ChannelGrid
-            channels={channels}
-            loading={loading}
-            onPlay={setCurrentChannel}
-            onToggleFavorite={handleToggleFavorite}
-            currentChannel={currentChannel}
-          />
+          {activeTab === 'live' && (
+            <>
+              {/* Search bar for live */}
+              <div className="mb-6 max-w-xl">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Rechercher une chaîne..."
+                    className="w-full pl-10 pr-4 py-2 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+                  />
+                </div>
+              </div>
+              <ChannelGrid
+                channels={channels}
+                loading={loading}
+                onPlay={setCurrentChannel}
+                onToggleFavorite={handleToggleFavorite}
+                currentChannel={currentChannel}
+              />
+            </>
+          )}
+
+          {activeTab === 'vod' && xtreamPlaylistId && (
+            <Vod
+              playlistId={xtreamPlaylistId}
+              onBack={() => setActiveTab('live')}
+              onPlay={handlePlayContent}
+            />
+          )}
+
+          {activeTab === 'series' && xtreamPlaylistId && (
+            <Series
+              playlistId={xtreamPlaylistId}
+              onBack={() => setActiveTab('live')}
+              onPlay={handlePlayContent}
+            />
+          )}
         </main>
       </div>
 

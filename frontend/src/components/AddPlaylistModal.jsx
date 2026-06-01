@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { X, Link, Upload, Loader } from 'lucide-react';
+import { X, Link, Upload, Loader, Server } from 'lucide-react';
 import api from '../utils/api';
 
 export default function AddPlaylistModal({ onClose, onAdded }) {
-  const [mode, setMode] = useState('url');
+  const [mode, setMode] = useState('xtream');
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [file, setFile] = useState(null);
+  const [xtreamServer, setXtreamServer] = useState('');
+  const [xtreamUser, setXtreamUser] = useState('');
+  const [xtreamPass, setXtreamPass] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -16,7 +19,14 @@ export default function AddPlaylistModal({ onClose, onAdded }) {
     setLoading(true);
 
     try {
-      if (mode === 'url') {
+      if (mode === 'xtream') {
+        await api.post('/xtream/login', {
+          server: xtreamServer,
+          username: xtreamUser,
+          password: xtreamPass,
+          name: name || undefined
+        });
+      } else if (mode === 'url') {
         await api.post('/playlists/url', { name, url });
       } else {
         const formData = new FormData();
@@ -28,7 +38,7 @@ export default function AddPlaylistModal({ onClose, onAdded }) {
       }
       onAdded();
     } catch (err) {
-      setError(err.response?.data?.error || 'Erreur lors de l\'ajout');
+      setError(err.response?.data?.error || "Erreur lors de l'ajout");
     } finally {
       setLoading(false);
     }
@@ -55,8 +65,20 @@ export default function AddPlaylistModal({ onClose, onAdded }) {
           <div className="flex gap-2 mb-5">
             <button
               type="button"
+              onClick={() => setMode('xtream')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-colors text-sm ${
+                mode === 'xtream'
+                  ? 'bg-violet-600/20 border-violet-500 text-violet-400'
+                  : 'border-dark-700 text-dark-400 hover:border-dark-600'
+              }`}
+            >
+              <Server className="w-4 h-4" />
+              Xtream
+            </button>
+            <button
+              type="button"
               onClick={() => setMode('url')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-colors text-sm ${
                 mode === 'url'
                   ? 'bg-violet-600/20 border-violet-500 text-violet-400'
                   : 'border-dark-700 text-dark-400 hover:border-dark-600'
@@ -68,7 +90,7 @@ export default function AddPlaylistModal({ onClose, onAdded }) {
             <button
               type="button"
               onClick={() => setMode('file')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-colors text-sm ${
                 mode === 'file'
                   ? 'bg-violet-600/20 border-violet-500 text-violet-400'
                   : 'border-dark-700 text-dark-400 hover:border-dark-600'
@@ -79,41 +101,101 @@ export default function AddPlaylistModal({ onClose, onAdded }) {
             </button>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-dark-300 mb-2">Nom de la playlist</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
-              placeholder="Ma playlist IPTV"
-              required
-            />
-          </div>
-
-          {mode === 'url' ? (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-dark-300 mb-2">URL de la playlist M3U</label>
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
-                placeholder="https://exemple.com/playlist.m3u"
-                required
-              />
-            </div>
+          {mode === 'xtream' ? (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-dark-300 mb-2">Serveur (URL)</label>
+                <input
+                  type="url"
+                  value={xtreamServer}
+                  onChange={(e) => setXtreamServer(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="http://serveur.com:port"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-dark-300 mb-2">Identifiant</label>
+                <input
+                  type="text"
+                  value={xtreamUser}
+                  onChange={(e) => setXtreamUser(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="username"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-dark-300 mb-2">Mot de passe</label>
+                <input
+                  type="password"
+                  value={xtreamPass}
+                  onChange={(e) => setXtreamPass(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="password"
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-dark-300 mb-2">Nom (optionnel)</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="Mon IPTV"
+                />
+              </div>
+            </>
+          ) : mode === 'url' ? (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-dark-300 mb-2">Nom de la playlist</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="Ma playlist IPTV"
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-dark-300 mb-2">URL de la playlist M3U</label>
+                <input
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="https://exemple.com/playlist.m3u"
+                  required
+                />
+              </div>
+            </>
           ) : (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-dark-300 mb-2">Fichier M3U / M3U8</label>
-              <input
-                type="file"
-                accept=".m3u,.m3u8"
-                onChange={(e) => setFile(e.target.files[0])}
-                className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-violet-600 file:text-white file:text-sm"
-                required
-              />
-            </div>
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-dark-300 mb-2">Nom de la playlist</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors"
+                  placeholder="Ma playlist IPTV"
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-dark-300 mb-2">Fichier M3U / M3U8</label>
+                <input
+                  type="file"
+                  accept=".m3u,.m3u8"
+                  onChange={(e) => setFile(e.target.files[0])}
+                  className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-violet-500 transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-violet-600 file:text-white file:text-sm"
+                  required
+                />
+              </div>
+            </>
           )}
 
           <button
@@ -124,10 +206,10 @@ export default function AddPlaylistModal({ onClose, onAdded }) {
             {loading ? (
               <>
                 <Loader className="w-4 h-4 animate-spin" />
-                Chargement...
+                {mode === 'xtream' ? 'Connexion...' : 'Chargement...'}
               </>
             ) : (
-              'Ajouter la playlist'
+              mode === 'xtream' ? 'Se connecter' : 'Ajouter la playlist'
             )}
           </button>
         </form>
